@@ -1,0 +1,14 @@
+{
+    "slug": "planning-check",
+    "name": "Validation du planning de demain",
+    "version": "0.1.0",
+    "description": "Validation du planning de demain — à décrire.",
+    "author": { "name": "AudricSan", "url": "https://github.com/AudricSan" },
+    "kintai_contract": "^1.27",
+    "kintai_core": { "min": "0.3.6", "max": "999.999.999" },
+    "requires_bundles": {},
+    "namespace": "kintai\\Bundles\\Installed\\PlanningCheck",
+    "entry_class": "kintai\\Bundles\\Installed\\PlanningCheck\\PlanningCheckBundle",
+    "license": "AGPL-3.0-only",
+    "homepage": "https://github.com/AudricSan/kintai-bundle-planning-check"
+}
