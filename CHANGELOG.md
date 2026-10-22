@@ -6,6 +6,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Page de réglages refaite sur le modèle des réglages Owner : grille à deux colonnes, interrupteurs pour l'activation et les shifts ouverts, horaires côte à côte, jours de la semaine en pastilles, PDF d'essai dans sa propre carte.
+
 ## [1.0.0] - 2026-10-22
 
 ### Added
