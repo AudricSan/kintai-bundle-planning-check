@@ -80,6 +80,8 @@
     "planning_check_reject_reason": "差し戻しの理由",
     "planning_check_rejected_notice": "差し戻し：",
     "planning_check_resend_updated": "更新版を再送",
+    "planning_check_resend_new": "新しいPDFを作成して送信",
+    "planning_check_resend_new_confirm": "現在のシフトから新しいPDFを作成し、宛先に送信しますか？",
     "planning_check_retry": "再試行",
     "planning_check_send_failed": "送信失敗",
     "planning_check_setting_deadline": "期限",

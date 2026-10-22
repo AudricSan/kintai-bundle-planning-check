@@ -74,10 +74,16 @@ $_errorCode = (string) ($_GET['pc_error'] ?? '');
                 </td>
                 <td class="text-right">
                     <a href="<?= htmlspecialchars(route_url('admin.planning_check.pdf', ['id' => $_id, 'cid' => $_cid])) ?>" class="btn btn--ghost btn--sm">PDF</a>
-                    <?php if ($can_approve && $_c['needs_resend']): ?>
-                        <form method="POST" action="<?= htmlspecialchars(route_url('admin.planning_check.resend', ['id' => $_id, 'cid' => $_cid])) ?>" class="inline-form">
+                    <?php if ($can_approve && $_c['status'] === 'validated'): ?>
+                        <?php // Changement détecté (ou envoi en échec) : action principale. Sinon, renvoi à la demande d'une version régénérée, après une modification que la détection n'a pas vue. ?>
+                        <form method="POST" action="<?= htmlspecialchars(route_url('admin.planning_check.resend', ['id' => $_id, 'cid' => $_cid])) ?>" class="inline-form"
+                              <?= $_c['needs_resend'] ? '' : 'data-confirm="' . htmlspecialchars(__('planning_check_resend_new_confirm'), ENT_QUOTES) . '"' ?>>
                             <?= csrf_field() ?>
-                            <button type="submit" class="btn btn--primary btn--sm"><?= $_c['send_status'] === 'failed' ? __('planning_check_retry') : __('planning_check_resend_updated') ?></button>
+                            <?php if ($_c['needs_resend']): ?>
+                                <button type="submit" class="btn btn--primary btn--sm"><?= $_c['send_status'] === 'failed' ? __('planning_check_retry') : __('planning_check_resend_updated') ?></button>
+                            <?php else: ?>
+                                <button type="submit" class="btn btn--ghost btn--sm"><?= __('planning_check_resend_new') ?></button>
+                            <?php endif; ?>
                         </form>
                     <?php endif; ?>
                 </td>

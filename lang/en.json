@@ -80,6 +80,8 @@
     "planning_check_reject_reason": "Reason for rejecting",
     "planning_check_rejected_notice": "Rejected, please fix:",
     "planning_check_resend_updated": "Resend an updated version",
+    "planning_check_resend_new": "Generate a new PDF and send it",
+    "planning_check_resend_new_confirm": "Generate a new PDF from the current schedule and send it to the recipients?",
     "planning_check_retry": "Retry",
     "planning_check_send_failed": "Sending failed",
     "planning_check_setting_deadline": "Deadline",
