@@ -189,7 +189,8 @@ final class PlanningCheckService
             'validated_by' => $userId,
             'validated_at' => date('Y-m-d H:i:s', $now->getTimestamp()),
         ]);
-        $sent = $this->deliver($store, $check, $settings, $userId, false, $now);
+        // Un planning rouvert puis revalidé après un premier envoi part comme version mise à jour.
+        $sent = $this->deliver($store, $check, $settings, $userId, $check['send_status'] === 'sent', $now);
 
         $this->notify($check['submitted_by'] !== null ? [$check['submitted_by']] : [], 'planning_check_validated', $store, $check, [], $userId);
         if (!$sent['ok']) {
@@ -223,6 +224,64 @@ final class PlanningCheckService
             return ['ok' => false, 'error' => 'send_failed', 'check' => $sent['check']];
         }
         return ['ok' => true, 'error' => null, 'check' => $sent['check']];
+    }
+
+    /**
+     * « Envoyer maintenant » : le valideur décide lui-même d'envoyer le planning du lendemain, à tout moment (hors fenêtre,
+     * jour non ouvré, soumission oubliée). Selon l'état : soumet puis valide (PDF + e-mail), valide ce qui était soumis, ou
+     * régénère le PDF d'un planning déjà validé et le renvoie comme version mise à jour.
+     *
+     * @return array{ok: bool, error: ?string, check: array<string, mixed>|null}
+     */
+    public function sendNow(int $storeId, string $date, int $userId, bool $confirmEmpty, \DateTimeImmutable $now): array
+    {
+        $store = $this->stores->findById($storeId);
+        $settings = $this->repo->settings($storeId);
+        if ($store === null || empty($settings['enabled'])) {
+            return $this->fail('not_enabled');
+        }
+        $check = $this->repo->ensure($storeId, $date);
+        if (in_array($check['status'], [Repo::STATUS_PENDING, Repo::STATUS_REJECTED, Repo::STATUS_ESCALATED], true)) {
+            $submitted = $this->submit($storeId, $date, $userId, $confirmEmpty, $now);
+            if (!$submitted['ok']) {
+                return $submitted;
+            }
+            $check = $submitted['check'];
+        }
+
+        return $check['status'] === Repo::STATUS_VALIDATED
+            ? $this->resend((int) $check['id'], $userId, $now)
+            : $this->approve((int) $check['id'], $userId, $now);
+    }
+
+    /**
+     * « Refaire le signalement » : une vérification soumise ou validée repart de zéro pour que le cycle (soumettre, valider,
+     * envoyer) soit refait. L'historique des envois est conservé, donc le prochain e-mail est une version mise à jour.
+     *
+     * @return array{ok: bool, error: ?string, check: array<string, mixed>|null}
+     */
+    public function reopen(int $storeId, string $date): array
+    {
+        $check = $this->repo->findFor($storeId, $date);
+        if ($check === null) {
+            return $this->fail('not_found');
+        }
+        if (!in_array($check['status'], [Repo::STATUS_SUBMITTED, Repo::STATUS_VALIDATED], true)) {
+            return $this->fail('bad_status', $check);
+        }
+        $check = $this->repo->update($check['id'], [
+            'status'        => Repo::STATUS_PENDING,
+            'submitted_by'  => null,
+            'submitted_at'  => null,
+            'validated_by'  => null,
+            'validated_at'  => null,
+            'rejected_by'   => null,
+            'rejected_at'   => null,
+            'reject_reason' => null,
+            'editing_by'    => null,
+            'editing_until' => null,
+        ]);
+        return ['ok' => true, 'error' => null, 'check' => $check];
     }
 
     /**
