@@ -1,7 +1,7 @@
 {
     "slug": "planning-check",
     "name": "Validation du planning de demain",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "Avant midi, le manager confirme que les shifts du lendemain sont corrects ; validation, PDF au patron, escalade en cas de retard.",
     "author": { "name": "AudricSan", "url": "https://github.com/AudricSan" },
     "kintai_contract": "^1.27",
