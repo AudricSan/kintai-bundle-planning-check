@@ -24,8 +24,8 @@ $router->group('/admin', function ($r) {
     $r->post('/stores/{id}/planning-check/submit',               [PlanningCheckController::class, 'submit'],       name: 'admin.planning_check.submit',   permission: ['perm' => 'planning_check.submit', 'membership' => true]);
     $r->post('/stores/{id}/planning-check/edit',                 [PlanningCheckController::class, 'edit'],         name: 'admin.planning_check.edit',     permission: ['perm' => 'planning_check.submit', 'membership' => true]);
     $r->post('/stores/{id}/planning-check/resume',              [PlanningCheckController::class, 'resume'],       name: 'admin.planning_check.resume',   permission: ['perm' => 'planning_check.submit', 'membership' => true]);
-    $r->post('/stores/{id}/planning-check/send-now',             [PlanningCheckController::class, 'sendNow'],      name: 'admin.planning_check.send_now', permission: 'planning_check.approve');
-    $r->post('/stores/{id}/planning-check/reopen',               [PlanningCheckController::class, 'reopen'],       name: 'admin.planning_check.reopen',   permission: 'planning_check.approve');
+    $r->post('/stores/{id}/planning-check/recheck',              [PlanningCheckController::class, 'recheck'],      name: 'admin.planning_check.recheck',  permission: ['perm' => 'planning_check.submit', 'membership' => true]);
+    $r->post('/stores/{id}/planning-check/send-now',            [PlanningCheckController::class, 'sendNow'],      name: 'admin.planning_check.send_now', permission: 'planning_check.approve');
     $r->post('/stores/{id}/planning-check/{cid}/approve',       [PlanningCheckController::class, 'approve'],      name: 'admin.planning_check.approve',  permission: 'planning_check.approve');
     $r->post('/stores/{id}/planning-check/{cid}/reject',         [PlanningCheckController::class, 'reject'],       name: 'admin.planning_check.reject',   permission: 'planning_check.approve');
     $r->post('/stores/{id}/planning-check/{cid}/resend',         [PlanningCheckController::class, 'resend'],       name: 'admin.planning_check.resend',   permission: 'planning_check.approve');
