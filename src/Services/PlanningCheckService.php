@@ -255,6 +255,31 @@ final class PlanningCheckService
     }
 
     /**
+     * « Revérifier le planning de demain » : prépare la vérification pour que la fenêtre habituelle puisse être rouverte de
+     * force (voir PlanningCheckForce). Une vérification soumise ou validée repart en attente (l'historique des envois est
+     * conservé, donc le prochain e-mail est une version mise à jour) ; en attente, refusée ou escaladée, elle reste telle
+     * quelle ; la mise en retrait « je modifie le planning » est levée. Crée la vérification si elle n'existe pas encore.
+     *
+     * @return array{ok: bool, error: ?string, check: array<string, mixed>|null}
+     */
+    public function forceRecheck(int $storeId, string $date): array
+    {
+        $store = $this->stores->findById($storeId);
+        $settings = $this->repo->settings($storeId);
+        if ($store === null || empty($settings['enabled'])) {
+            return $this->fail('not_enabled');
+        }
+        $check = $this->repo->ensure($storeId, $date);
+        if (in_array($check['status'], [Repo::STATUS_SUBMITTED, Repo::STATUS_VALIDATED], true)) {
+            return $this->reopen($storeId, $date);
+        }
+        if ($check['editing_until'] !== null) {
+            $check = $this->repo->update($check['id'], ['editing_by' => null, 'editing_until' => null]);
+        }
+        return ['ok' => true, 'error' => null, 'check' => $check];
+    }
+
+    /**
      * « Refaire le signalement » : une vérification soumise ou validée repart de zéro pour que le cycle (soumettre, valider,
      * envoyer) soit refait. L'historique des envois est conservé, donc le prochain e-mail est une version mise à jour.
      *

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace kintai\Bundles\Installed\PlanningCheck\Controllers\Web;
 
 use kintai\Bundles\Installed\PlanningCheck\Repositories\PlanningCheckRepositoryInterface as Repo;
+use kintai\Bundles\Installed\PlanningCheck\Services\PlanningCheckForce;
 use kintai\Bundles\Installed\PlanningCheck\Services\PlanningCheckPolicy;
 use kintai\Bundles\Installed\PlanningCheck\Services\PlanningCheckService;
 use kintai\Bundles\Installed\PlanningCheck\Services\PlanningMailService;
@@ -127,9 +128,29 @@ final class PlanningCheckController
 
         $result = $this->service->submit((int) $store['id'], $date, (int) $user['id'], $request->post('confirm_empty', '') === '1', new \DateTimeImmutable('now'));
         if ($result['ok']) {
+            // La vérification est soumise : plus rien à forcer (la fenêtre de validation prend le relais pour les valideurs).
+            PlanningCheckForce::clear((int) $store['id']);
             $this->auditLogger->log($request, 'planning_check.submitted', 'planning_check', (int) $result['check']['id'], ['store_id' => (int) $store['id'], 'date' => $date], (int) $store['id']);
         }
         return $this->back($store, $result, 'submitted');
+    }
+
+    /**
+     * POST /admin/stores/{id}/planning-check/recheck — « Revérifier le planning de demain » : rouvre la vérification (même
+     * déjà soumise ou validée) et force l'ouverture de la fenêtre habituelle, avec les shifts de demain, comme si l'heure
+     * de la vérification était venue. La soumettre recrée un rapport.
+     */
+    public function recheck(Request $request): Response
+    {
+        $store = $this->requireStore($request);
+        $date = $this->requireTargetDate($request, $store);
+
+        $result = $this->service->forceRecheck((int) $store['id'], $date);
+        if ($result['ok']) {
+            PlanningCheckForce::mark((int) $store['id'], $date);
+            $this->auditLogger->log($request, 'planning_check.recheck_forced', 'planning_check', (int) $result['check']['id'], ['store_id' => (int) $store['id'], 'date' => $date], (int) $store['id']);
+        }
+        return $this->back($store, $result, 'recheck');
     }
 
     /** POST /admin/stores/{id}/planning-check/edit — « Non, modifier le planning » : retrait de la fenêtre, puis le planning. */
@@ -211,19 +232,6 @@ final class PlanningCheckController
             ], (int) $store['id']);
         }
         return $this->back($store, $result, 'sent_now');
-    }
-
-    /** POST /admin/stores/{id}/planning-check/reopen — « Refaire le signalement » : la vérification de demain repart de zéro. */
-    public function reopen(Request $request): Response
-    {
-        $store = $this->requireStore($request);
-        $date = $this->requireTargetDate($request, $store);
-
-        $result = $this->service->reopen((int) $store['id'], $date);
-        if ($result['ok']) {
-            $this->auditLogger->log($request, 'planning_check.reopened', 'planning_check', (int) $result['check']['id'], ['store_id' => (int) $store['id'], 'date' => $date], (int) $store['id']);
-        }
-        return $this->back($store, $result, 'reopened');
     }
 
     /** GET /admin/stores/{id}/planning-check/{cid}/pdf — PDF du planning tel qu'il est maintenant. */

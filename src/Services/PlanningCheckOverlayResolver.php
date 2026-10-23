@@ -84,6 +84,11 @@ final class PlanningCheckOverlayResolver
                 continue;
             }
             $state = $this->state($store, $now);
+            // « Revérifier le planning de demain » : la fenêtre est forcée pour cet utilisateur, même hors fenêtre horaire ou un jour non ouvré.
+            if (!$state['due'] && !empty($state['settings']['enabled']) && PlanningCheckForce::isForced($storeId, (string) $state['date'])) {
+                $state['check'] = $this->repo->ensure($storeId, (string) $state['date']);
+                $state['due'] = true;
+            }
             $check = $state['check'];
             if (!$state['due'] || $check === null || !in_array($check['status'], [Repo::STATUS_PENDING, Repo::STATUS_REJECTED, Repo::STATUS_ESCALATED], true)) {
                 continue;

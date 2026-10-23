@@ -14,7 +14,7 @@
 use kintai\Contract\View\Components\Flash;
 
 $_id = (int) $store['id'];
-$_success = ['submitted' => __('planning_check_flash_submitted'), 'validated' => __('planning_check_flash_validated'), 'rejected' => __('planning_check_flash_rejected'), 'resent' => __('planning_check_flash_resent'), 'sent_now' => __('planning_check_flash_sent_now'), 'reopened' => __('planning_check_flash_reopened')];
+$_success = ['submitted' => __('planning_check_flash_submitted'), 'validated' => __('planning_check_flash_validated'), 'rejected' => __('planning_check_flash_rejected'), 'resent' => __('planning_check_flash_resent'), 'sent_now' => __('planning_check_flash_sent_now'), 'recheck' => __('planning_check_flash_recheck')];
 $_labels = ['pending' => 'planning_check_status_pending', 'submitted' => 'planning_check_status_submitted', 'validated' => 'planning_check_status_validated', 'rejected' => 'planning_check_status_rejected', 'escalated' => 'planning_check_status_escalated'];
 $_errorCode = (string) ($_GET['pc_error'] ?? '');
 ?>
@@ -36,9 +36,9 @@ $_errorCode = (string) ($_GET['pc_error'] ?? '');
     <div class="alert alert--info mb-sm"><?= __('planning_check_disabled_hint') ?></div>
 <?php endif; ?>
 
-<?php if (!empty($can_approve) && !empty($settings['enabled']) && !empty($tomorrow)): ?>
+<?php if ((!empty($can_approve) || !empty($can_submit)) && !empty($settings['enabled']) && !empty($tomorrow)): ?>
     <?php
-    // Planning de demain : décider soi-même d'envoyer (même hors fenêtre) ou de refaire le signalement.
+    // Planning de demain : revérifier (force la fenêtre habituelle) ou, pour un valideur, envoyer directement.
     $_tDate   = (string) $tomorrow['date'];
     $_tCheck  = $tomorrow['check'];
     $_tStatus = $_tCheck['status'] ?? 'pending';
@@ -53,19 +53,22 @@ $_errorCode = (string) ($_GET['pc_error'] ?? '');
                     <?= __($_labels[$_tStatus] ?? 'planning_check_status_pending') ?> · <?= htmlspecialchars((string) $_tCount) ?> <?= __('planning_check_tomorrow_shifts') ?>
                 </div>
             </div>
-            <form method="POST" action="<?= htmlspecialchars(route_url('admin.planning_check.send_now', ['id' => $_id])) ?>" class="inline-form"
-                  data-confirm="<?= htmlspecialchars($_tConfirm, ENT_QUOTES) ?>">
-                <?= csrf_field() ?>
-                <input type="hidden" name="date" value="<?= htmlspecialchars($_tDate) ?>">
-                <?php if ($_tCount === 0): ?><input type="hidden" name="confirm_empty" value="1"><?php endif; ?>
-                <button type="submit" class="btn btn--primary btn--sm"><?= $_tStatus === 'validated' ? __('planning_check_send_now_again') : __('planning_check_send_now') ?></button>
-            </form>
-            <?php if (in_array($_tStatus, ['submitted', 'validated'], true)): ?>
-                <form method="POST" action="<?= htmlspecialchars(route_url('admin.planning_check.reopen', ['id' => $_id])) ?>" class="inline-form"
-                      data-confirm="<?= htmlspecialchars(__('planning_check_reopen_confirm'), ENT_QUOTES) ?>">
+            <?php if (!empty($can_submit)): ?>
+                <?php // Rouvre la vérification (même soumise ou validée) et force la fenêtre habituelle : les shifts de demain, à vérifier de nouveau. ?>
+                <form method="POST" action="<?= htmlspecialchars(route_url('admin.planning_check.recheck', ['id' => $_id])) ?>" class="inline-form"
+                      <?= in_array($_tStatus, ['submitted', 'validated'], true) ? 'data-confirm="' . htmlspecialchars(__('planning_check_recheck_confirm'), ENT_QUOTES) . '"' : '' ?>>
                     <?= csrf_field() ?>
                     <input type="hidden" name="date" value="<?= htmlspecialchars($_tDate) ?>">
-                    <button type="submit" class="btn btn--ghost btn--sm"><?= __('planning_check_reopen') ?></button>
+                    <button type="submit" class="btn btn--primary btn--sm"><?= __('planning_check_recheck') ?></button>
+                </form>
+            <?php endif; ?>
+            <?php if (!empty($can_approve)): ?>
+                <form method="POST" action="<?= htmlspecialchars(route_url('admin.planning_check.send_now', ['id' => $_id])) ?>" class="inline-form"
+                      data-confirm="<?= htmlspecialchars($_tConfirm, ENT_QUOTES) ?>">
+                    <?= csrf_field() ?>
+                    <input type="hidden" name="date" value="<?= htmlspecialchars($_tDate) ?>">
+                    <?php if ($_tCount === 0): ?><input type="hidden" name="confirm_empty" value="1"><?php endif; ?>
+                    <button type="submit" class="btn btn--ghost btn--sm"><?= $_tStatus === 'validated' ? __('planning_check_send_now_again') : __('planning_check_send_now') ?></button>
                 </form>
             <?php endif; ?>
         </div>
