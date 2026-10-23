@@ -30,6 +30,7 @@ final class DatabasePlanningCheckRepositoryTest extends TestCase
             }
         };
         $loader->load(dirname(__DIR__, 2) . '/database/migrations/2026_10_23_000001_create_planning_check_tables.php')->up();
+        $loader->load(dirname(__DIR__, 2) . '/database/migrations/2026_10_24_000001_add_mail_recipient_ids_to_planning_check_settings.php')->up();
 
         $this->repo = new DatabasePlanningCheckRepository();
     }
@@ -55,7 +56,7 @@ final class DatabasePlanningCheckRepositoryTest extends TestCase
 
         $settings = $this->repo->settings(3);
         $this->assertSame(['enabled' => true, 'deadline_time' => '11:45', 'window_start_time' => '07:15', 'weekdays' => [1, 3, 5],
-            'mail_recipients' => ['boss@example.com'], 'include_open_shifts' => false], $settings, 'enregistrer remplace');
+            'mail_recipient_ids' => [], 'mail_recipients' => ['boss@example.com'], 'include_open_shifts' => false], $settings, 'enregistrer remplace');
         $this->assertSame([3], $this->repo->enabledStoreIds());
         $this->assertSame([1], $this->repo->settings(4)['weekdays']);
     }

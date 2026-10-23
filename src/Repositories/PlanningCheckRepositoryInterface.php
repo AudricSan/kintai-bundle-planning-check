@@ -21,6 +21,7 @@ interface PlanningCheckRepositoryInterface
         'deadline_time'       => '12:00',
         'window_start_time'   => '06:00',
         'weekdays'            => [1, 2, 3, 4, 5, 6, 7],
+        'mail_recipient_ids'  => [],
         'mail_recipients'     => [],
         'include_open_shifts' => false,
     ];
@@ -28,7 +29,7 @@ interface PlanningCheckRepositoryInterface
     /**
      * Réglages du magasin, complétés par les valeurs par défaut.
      *
-     * @return array{enabled: bool, deadline_time: string, window_start_time: string, weekdays: list<int>, mail_recipients: list<string>, include_open_shifts: bool}
+     * @return array{enabled: bool, deadline_time: string, window_start_time: string, weekdays: list<int>, mail_recipient_ids: list<int>, mail_recipients: list<string>, include_open_shifts: bool}
      */
     public function settings(int $storeId): array;
 

@@ -68,6 +68,7 @@ final class PlanningCheckServiceTest extends TestCase
             }
         };
         $loader->load(dirname(__DIR__, 2) . '/database/migrations/2026_10_23_000001_create_planning_check_tables.php')->up();
+        $loader->load(dirname(__DIR__, 2) . '/database/migrations/2026_10_24_000001_add_mail_recipient_ids_to_planning_check_settings.php')->up();
 
         $this->repo = new DatabasePlanningCheckRepository();
         $this->now = new \DateTimeImmutable('2026-10-21 08:00:00', new \DateTimeZone('Asia/Tokyo')); // 08:00 à Tokyo
@@ -139,6 +140,7 @@ final class PlanningCheckServiceTest extends TestCase
             new MailerService(['driver' => 'native', 'from' => ['address' => 'noreply@kintai.test']], $transport),
             $translations,
             $pdf,
+            new \kintai\Core\Services\UserSelection($members, $users, $permissions),
         );
         $rows = new PlanningShiftRows($shiftsRepo, $types, $users);
         $this->service = new PlanningCheckService($this->repo, $stores, $members, $users, $permissions, $notifications, $rows, $pdf, $mail);
@@ -277,6 +279,31 @@ final class PlanningCheckServiceTest extends TestCase
         $this->assertSame(['planning_check_validated'], array_column($this->notifications, 'type'));
         $this->assertSame([5], $this->notifications[0]['ids']);
         $this->assertCount(1, $this->repo->sendsFor($check['id']));
+    }
+
+    public function testChosenEmployeesEachReceiveTheirOwnMailWithThePdf(): void
+    {
+        $check = $this->submitted();
+        $this->enable(['mail_recipient_ids' => [5, 7, 99], 'mail_recipients' => ['boss@EXAMPLE.com', 'U5@example.com']]);
+
+        $result = $this->service->approve($check['id'], 7, $this->now);
+
+        $this->assertTrue($result['ok']);
+        // 99 n'est pas membre du magasin : écarté ; U5@example.com est déjà l'adresse de l'employé 5 : pas de doublon.
+        $this->assertSame([['u5@example.com'], ['u7@example.com'], ['boss@EXAMPLE.com']], array_column($this->mails, 'to'));
+        foreach ($this->mails as $mail) {
+            $this->assertTrue($mail['attached'], 'le PDF est joint à chaque message');
+        }
+        $this->assertSame('["u5@example.com","u7@example.com","boss@EXAMPLE.com"]', $this->repo->sendsFor($check['id'])[0]['recipients'], 'l\'historique garde les adresses réellement utilisées');
+    }
+
+    public function testAnEmployeeSelectionAloneIsEnoughToApprove(): void
+    {
+        $check = $this->submitted();
+        $this->enable(['mail_recipient_ids' => [5], 'mail_recipients' => []]);
+
+        $this->assertTrue($this->service->approve($check['id'], 7, $this->now)['ok']);
+        $this->assertSame([['u5@example.com']], array_column($this->mails, 'to'));
     }
 
     public function testApprovingNeedsAValidRecipientAndKeepsTheCheckSubmitted(): void

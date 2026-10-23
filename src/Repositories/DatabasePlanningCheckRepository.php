@@ -21,12 +21,14 @@ final class DatabasePlanningCheckRepository implements PlanningCheckRepositoryIn
             static fn(int $d): bool => $d >= 1 && $d <= 7,
         )));
         $recipients = json_decode((string) ($row['mail_recipients'] ?? ''), true);
+        $recipientIds = json_decode((string) ($row['mail_recipient_ids'] ?? ''), true);
 
         return [
             'enabled'             => (bool) $row['enabled'],
             'deadline_time'       => self::time((string) ($row['deadline_time'] ?? ''), $defaults['deadline_time']),
             'window_start_time'   => self::time((string) ($row['window_start_time'] ?? ''), $defaults['window_start_time']),
             'weekdays'            => $weekdays !== [] ? $weekdays : $defaults['weekdays'],
+            'mail_recipient_ids'  => is_array($recipientIds) ? array_values(array_map('intval', $recipientIds)) : [],
             'mail_recipients'     => is_array($recipients) ? array_values(array_filter($recipients, 'is_string')) : [],
             'include_open_shifts' => (bool) $row['include_open_shifts'],
         ];
@@ -39,6 +41,7 @@ final class DatabasePlanningCheckRepository implements PlanningCheckRepositoryIn
             'deadline_time'       => (string) $settings['deadline_time'],
             'window_start_time'   => (string) $settings['window_start_time'],
             'weekdays'            => implode(',', array_map('intval', (array) $settings['weekdays'])),
+            'mail_recipient_ids'  => json_encode(array_values(array_map('intval', (array) ($settings['mail_recipient_ids'] ?? []))), JSON_UNESCAPED_UNICODE),
             'mail_recipients'     => json_encode(array_values((array) $settings['mail_recipients']), JSON_UNESCAPED_UNICODE),
             'include_open_shifts' => !empty($settings['include_open_shifts']) ? 1 : 0,
             'updated_at'          => date('Y-m-d H:i:s'),
