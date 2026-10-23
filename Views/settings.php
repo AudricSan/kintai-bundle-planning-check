@@ -29,63 +29,83 @@ $_error = (string) ($_GET['error'] ?? '');
     <div class="alert alert--danger mb-sm"><?= htmlspecialchars(__($_e)) ?></div>
 <?php endforeach; ?>
 
-<form method="POST" action="<?= htmlspecialchars(route_url('admin.planning_check.settings.save', ['id' => $_id])) ?>">
+<form method="POST" action="<?= htmlspecialchars(route_url('admin.planning_check.settings.save', ['id' => $_id])) ?>" class="pc-settings">
     <?= csrf_field() ?>
-    <div class="card card--mb">
-        <div class="card-header"><?= __('planning_check_setting_enabled') ?></div>
-        <div class="card-body form-stack">
-            <label class="check-label">
-                <input type="checkbox" name="enabled" value="1"<?= !empty($settings['enabled']) ? ' checked' : '' ?>>
-                <span><?= __('planning_check_setting_enabled_hint') ?></span>
+
+    <div class="card pc-settings__wide">
+        <div class="card-body pc-switch-row">
+            <div class="pc-switch-row__text">
+                <p class="pc-switch-row__title"><?= __('planning_check_setting_enabled') ?></p>
+                <p class="form-hint"><?= __('planning_check_setting_enabled_hint') ?></p>
+            </div>
+            <label class="form-toggle">
+                <input type="checkbox" name="enabled" value="1" class="form-toggle__input"<?= !empty($settings['enabled']) ? ' checked' : '' ?> aria-label="<?= htmlspecialchars(__('planning_check_setting_enabled')) ?>">
+                <span class="form-toggle__track"></span>
             </label>
         </div>
     </div>
 
-    <div class="card card--mb">
+    <div class="card">
         <div class="card-header"><?= __('planning_check_setting_timing') ?></div>
         <div class="card-body form-stack">
-            <div class="form-group">
-                <label class="form-label" for="pc-window"><?= __('planning_check_setting_window') ?></label>
-                <input type="time" id="pc-window" name="window_start_time" class="form-control form-control-sm" value="<?= htmlspecialchars((string) $settings['window_start_time']) ?>" required>
-                <p class="form-hint"><?= __('planning_check_setting_window_hint') ?></p>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label" for="pc-window"><?= __('planning_check_setting_window') ?></label>
+                    <input type="time" id="pc-window" name="window_start_time" class="form-control" value="<?= htmlspecialchars((string) $settings['window_start_time']) ?>" required>
+                    <p class="form-hint"><?= __('planning_check_setting_window_hint') ?></p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label" for="pc-deadline"><?= __('planning_check_setting_deadline') ?></label>
+                    <input type="time" id="pc-deadline" name="deadline_time" class="form-control" value="<?= htmlspecialchars((string) $settings['deadline_time']) ?>" required>
+                    <p class="form-hint"><?= __('planning_check_setting_deadline_hint') ?></p>
+                </div>
             </div>
-            <div class="form-group">
-                <label class="form-label" for="pc-deadline"><?= __('planning_check_setting_deadline') ?></label>
-                <input type="time" id="pc-deadline" name="deadline_time" class="form-control form-control-sm" value="<?= htmlspecialchars((string) $settings['deadline_time']) ?>" required>
-                <p class="form-hint"><?= __('planning_check_setting_deadline_hint') ?></p>
-            </div>
-            <fieldset class="form-group">
+            <fieldset class="form-group pc-weekdays">
                 <legend class="form-label"><?= __('planning_check_setting_weekdays') ?></legend>
-                <?php foreach ($_days as $_n => $_key): ?>
-                    <label class="check-label"><input type="checkbox" name="weekdays[]" value="<?= $_n ?>"<?= in_array($_n, (array) $settings['weekdays'], true) ? ' checked' : '' ?>> <span><?= __($_key) ?></span></label>
-                <?php endforeach; ?>
+                <div class="pc-weekdays__list">
+                    <?php foreach ($_days as $_n => $_key): ?>
+                        <label class="pc-day">
+                            <input type="checkbox" name="weekdays[]" value="<?= $_n ?>" class="pc-day__input"<?= in_array($_n, (array) $settings['weekdays'], true) ? ' checked' : '' ?>>
+                            <span class="pc-day__label"><?= __($_key) ?></span>
+                        </label>
+                    <?php endforeach; ?>
+                </div>
                 <p class="form-hint"><?= __('planning_check_setting_weekdays_hint') ?></p>
             </fieldset>
         </div>
     </div>
 
-    <div class="card card--mb">
+    <div class="card">
         <div class="card-header"><?= __('planning_check_setting_recipients') ?></div>
         <div class="card-body form-stack">
             <div class="form-group">
-                <textarea name="mail_recipients" rows="3" class="form-control" aria-label="<?= htmlspecialchars(__('planning_check_setting_recipients')) ?>"><?= htmlspecialchars(implode("\n", (array) $settings['mail_recipients'])) ?></textarea>
+                <textarea name="mail_recipients" rows="4" class="form-control" aria-label="<?= htmlspecialchars(__('planning_check_setting_recipients')) ?>"><?= htmlspecialchars(implode("
+", (array) $settings['mail_recipients'])) ?></textarea>
                 <p class="form-hint"><?= __('planning_check_setting_recipients_hint') ?></p>
             </div>
-            <label class="check-label">
-                <input type="checkbox" name="include_open_shifts" value="1"<?= !empty($settings['include_open_shifts']) ? ' checked' : '' ?>>
-                <span><?= __('planning_check_setting_open_shifts') ?></span>
-            </label>
+            <div class="pc-switch-row">
+                <p class="pc-switch-row__title"><?= __('planning_check_setting_open_shifts') ?></p>
+                <label class="form-toggle">
+                    <input type="checkbox" name="include_open_shifts" value="1" class="form-toggle__input"<?= !empty($settings['include_open_shifts']) ? ' checked' : '' ?> aria-label="<?= htmlspecialchars(__('planning_check_setting_open_shifts')) ?>">
+                    <span class="form-toggle__track"></span>
+                </label>
+            </div>
         </div>
     </div>
 
-    <div class="form-actions">
+    <div class="form-actions pc-settings__wide">
         <button type="submit" class="btn btn--primary"><?= __('save') ?></button>
     </div>
 </form>
 
-<form method="POST" action="<?= htmlspecialchars(route_url('admin.planning_check.test', ['id' => $_id])) ?>" class="mt-sm">
+<form method="POST" action="<?= htmlspecialchars(route_url('admin.planning_check.test', ['id' => $_id])) ?>" class="card pc-test">
     <?= csrf_field() ?>
-    <button type="submit" class="btn btn--ghost"><?= __('planning_check_test_send') ?></button>
-    <p class="form-hint"><?= __('planning_check_test_hint') ?></p>
+    <div class="card-body pc-switch-row">
+        <div class="pc-switch-row__text">
+            <p class="pc-switch-row__title"><?= __('planning_check_test_send') ?></p>
+            <p class="form-hint"><?= __('planning_check_test_hint') ?></p>
+        </div>
+        <button type="submit" class="btn btn--ghost"><?= __('planning_check_test_send') ?></button>
+    </div>
 </form>
 <?php unset($_e, $_n, $_key); ?>
