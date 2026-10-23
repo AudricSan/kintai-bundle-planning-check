@@ -29,6 +29,8 @@ final class HistoryResendButtonTest extends TestCase
         $router->post('/s/{id}/{cid}/resend', [\stdClass::class, 'x'], name: 'admin.planning_check.resend');
         $router->get('/s/{id}/{cid}/pdf', [\stdClass::class, 'x'], name: 'admin.planning_check.pdf');
         $router->get('/s/{id}/settings', [\stdClass::class, 'x'], name: 'admin.planning_check.settings');
+        $router->post('/s/{id}/send-now', [\stdClass::class, 'x'], name: 'admin.planning_check.send_now');
+        $router->post('/s/{id}/reopen', [\stdClass::class, 'x'], name: 'admin.planning_check.reopen');
         Container::getInstance()->instance(Router::class, $router);
         $_GET = [];
     }
@@ -51,6 +53,52 @@ final class HistoryResendButtonTest extends TestCase
             'title' => 'Historique', 'store' => ['id' => 3, 'name' => 'Shibuya'], 'checks' => [$check], 'names' => [],
             'highlight' => 0, 'can_approve' => $canApprove, 'can_settings' => false, 'settings' => ['enabled' => true],
         ]);
+    }
+
+    /** @param array<string, mixed>|null $tomorrowCheck */
+    private function renderTomorrow(?array $tomorrowCheck, int $count = 2, bool $canApprove = true, bool $enabled = true, bool $withTomorrow = true): string
+    {
+        return $this->view->renderPartial('planning-check::history', [
+            'title' => 'Historique', 'store' => ['id' => 3, 'name' => 'Shibuya'], 'checks' => [], 'names' => [],
+            'highlight' => 0, 'can_approve' => $canApprove, 'can_settings' => false, 'settings' => ['enabled' => $enabled],
+        ] + ($withTomorrow ? ['tomorrow' => ['date' => '2026-10-22', 'check' => $tomorrowCheck, 'count' => $count]] : []));
+    }
+
+    public function testTomorrowCardOffersSendNowEvenWhenNoCheckExistsYet(): void
+    {
+        $html = $this->renderTomorrow(null);
+
+        $this->assertStringContainsString('/s/3/send-now"', $html);
+        $this->assertStringContainsString('name="date" value="2026-10-22"', $html);
+        $this->assertStringContainsString('planning_check_send_now<', $html);
+        $this->assertStringNotContainsString('/s/3/reopen"', $html, 'rien à rouvrir tant que rien n\'est soumis');
+        $this->assertStringNotContainsString('name="confirm_empty"', $html);
+    }
+
+    public function testTomorrowCardOffersToRedoTheCheckOnceSubmittedOrValidated(): void
+    {
+        foreach (['submitted', 'validated'] as $status) {
+            $html = $this->renderTomorrow(['status' => $status]);
+
+            $this->assertStringContainsString('/s/3/reopen"', $html, $status);
+            $this->assertStringContainsString('/s/3/send-now"', $html, $status);
+        }
+        $this->assertStringContainsString('planning_check_send_now_again', $this->renderTomorrow(['status' => 'validated']));
+    }
+
+    public function testTomorrowCardWithoutShiftAsksForAStrongerConfirmation(): void
+    {
+        $html = $this->renderTomorrow(null, count: 0);
+
+        $this->assertStringContainsString('name="confirm_empty" value="1"', $html);
+        $this->assertStringContainsString('planning_check_send_now_confirm_empty', $html);
+    }
+
+    public function testTomorrowCardIsHiddenWithoutApprovalOrWhenDisabled(): void
+    {
+        $this->assertStringNotContainsString('/send-now"', $this->renderTomorrow(null, canApprove: false));
+        $this->assertStringNotContainsString('/send-now"', $this->renderTomorrow(null, enabled: false));
+        $this->assertStringNotContainsString('/send-now"', $this->renderTomorrow(null, withTomorrow: false), 'la vue reste utilisable sans ces données');
     }
 
     public function testAValidatedCheckCanBeRegeneratedAndResentEvenWithoutDetectedChange(): void
