@@ -6,6 +6,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-10-23
+
+Première version stable de la ligne 2 : elle regroupe, à l'identique, tout ce qui a été publié en alpha et en bêta depuis la ligne 1 (voir les sections ci-dessous), sans changement fonctionnel propre à cette version.
+
 ### Added
 
 - **Envoyer ou refaire le planning de demain à tout moment** (historique du magasin) : une carte « Planning de demain » est proposée aux détenteurs de `planning_check.approve`, même quand la fenêtre de soumission n'est pas ouverte, que le jour n'est pas ouvré ou que rien n'a été soumis. **Envoyer maintenant** soumet puis valide si besoin, génère un PDF neuf à partir des shifts actuels et l'envoie (version mise à jour si un envoi a déjà eu lieu) ; sans shift demain, une confirmation renforcée est demandée. **Refaire le signalement** remet la vérification soumise ou validée en attente, l'historique des envois est conservé. `POST .../planning-check/send-now` et `.../reopen`, audit `planning_check.sent_now` et `planning_check.reopened`.
