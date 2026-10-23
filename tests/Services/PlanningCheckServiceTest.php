@@ -6,6 +6,8 @@ namespace kintai\Tests\Bundles\PlanningCheck\Services;
 
 use Illuminate\Database\Capsule\Manager as Capsule;
 use kintai\Bundles\Installed\PlanningCheck\Repositories\DatabasePlanningCheckRepository;
+use kintai\Bundles\Installed\PlanningCheck\Services\PlanningCheckForce;
+use kintai\Bundles\Installed\PlanningCheck\Services\PlanningCheckOverlayResolver;
 use kintai\Bundles\Installed\PlanningCheck\Services\PlanningCheckService;
 use kintai\Bundles\Installed\PlanningCheck\Services\PlanningMailService;
 use kintai\Bundles\Installed\PlanningCheck\Services\PlanningPdfService;
@@ -48,6 +50,8 @@ final class PlanningCheckServiceTest extends TestCase
     public ?string $pdfBytes = '%PDF-fake';
     public bool $mailOk = true;
     private \DateTimeImmutable $now;
+    /** @var array{0: StoreRepositoryInterface, 1: PlanningShiftRows} */
+    private array $resolverDeps;
 
     protected function setUp(): void
     {
@@ -138,6 +142,24 @@ final class PlanningCheckServiceTest extends TestCase
         );
         $rows = new PlanningShiftRows($shiftsRepo, $types, $users);
         $this->service = new PlanningCheckService($this->repo, $stores, $members, $users, $permissions, $notifications, $rows, $pdf, $mail);
+        $this->resolverDeps = [$stores, $rows];
+        $_SESSION = [];
+    }
+
+    protected function tearDown(): void
+    {
+        $_SESSION = [];
+    }
+
+    /** Un résolveur neuf (il mémorise son résultat le temps d'une requête) pour l'utilisateur 5, qui peut soumettre. */
+    private function resolve(\DateTimeImmutable $now): ?array
+    {
+        $resolver = new PlanningCheckOverlayResolver($this->repo, $this->resolverDeps[0], $this->service, $this->resolverDeps[1]);
+
+        return $resolver->resolve([
+            'user' => ['id' => 5], 'now' => $now, 'store_ids' => [3],
+            'can' => static fn(string $permission, ?int $storeId = null): bool => $permission === 'planning_check.submit',
+        ]);
     }
 
     private function enable(array $overrides = []): void
@@ -463,6 +485,83 @@ final class PlanningCheckServiceTest extends TestCase
 
         $this->service->state(['id' => 3, 'timezone' => 'Asia/Tokyo'], $this->now); // crée la vérification en attente
         $this->assertSame('bad_status', $this->service->reopen(3, '2026-10-22')['error']);
+    }
+
+    // ── Revérifier : forcer la fenêtre habituelle ───────────────────────────────────────────────────────────────
+
+    public function testForceRecheckReopensAValidatedCheckAndKeepsTheSendHistory(): void
+    {
+        $this->enable();
+        $sent = $this->service->sendNow(3, '2026-10-22', 7, false, $this->now)['check'];
+
+        $result = $this->service->forceRecheck(3, '2026-10-22');
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame('pending', $result['check']['status']);
+        $this->assertNull($result['check']['validated_by']);
+        $this->assertCount(1, $this->repo->sendsFor($sent['id']));
+    }
+
+    public function testForceRecheckCreatesTheCheckAndLiftsTheEditingWithdrawal(): void
+    {
+        $this->enable();
+        $created = $this->service->forceRecheck(3, '2026-10-22');
+        $this->assertSame('pending', $created['check']['status'], 'créée si elle n\'existait pas encore');
+
+        $this->service->startEditing(3, '2026-10-22', 5, $this->now);
+        $this->assertNotNull($this->repo->findFor(3, '2026-10-22')['editing_until']);
+
+        $this->assertNull($this->service->forceRecheck(3, '2026-10-22')['check']['editing_until']);
+    }
+
+    public function testForceRecheckNeedsAnEnabledStore(): void
+    {
+        $this->assertSame('not_enabled', $this->service->forceRecheck(3, '2026-10-22')['error']);
+    }
+
+    public function testTheWindowDoesNotOpenOutsideTheHoursUnlessForced(): void
+    {
+        $this->enable();
+        $early = new \DateTimeImmutable('2026-10-21 05:00:00', new \DateTimeZone('Asia/Tokyo')); // fenêtre pas encore ouverte
+
+        $this->assertNull($this->resolve($early), 'hors fenêtre : rien');
+
+        PlanningCheckForce::mark(3, '2026-10-22');
+        $forced = $this->resolve($early);
+
+        $this->assertSame(PlanningCheckOverlayResolver::KIND_SUBMIT, $forced['kind']);
+        $this->assertSame('2026-10-22', $forced['date']);
+        $this->assertSame('pending', $forced['check']['status']);
+        $this->assertCount(2, $forced['day']['rows'], 'les shifts de demain sont montrés');
+    }
+
+    public function testRecheckingAValidatedCheckOpensTheNormalWindowAgainAndSubmittingCreatesTheNewReport(): void
+    {
+        $this->enable();
+        $this->service->sendNow(3, '2026-10-22', 7, false, $this->now);
+        $this->assertNull($this->resolve($this->now), 'validée : la fenêtre ne s\'affiche plus');
+
+        $this->service->forceRecheck(3, '2026-10-22');
+        PlanningCheckForce::mark(3, '2026-10-22');
+        $this->assertSame(PlanningCheckOverlayResolver::KIND_SUBMIT, $this->resolve($this->now)['kind']);
+
+        $this->assertTrue($this->service->submit(3, '2026-10-22', 5, false, $this->now)['ok']);
+        PlanningCheckForce::clear(3);
+        $this->assertNull($this->resolve($this->now), 'soumise : plus de fenêtre pour le manager');
+
+        $this->assertTrue($this->service->approve($this->repo->findFor(3, '2026-10-22')['id'], 7, $this->now)['ok']);
+        $this->assertCount(2, $this->mails);
+        $this->assertStringContainsString('planning_check_updated_label', $this->mails[1]['subject'], 'le nouveau rapport part comme version mise à jour');
+    }
+
+    public function testAForcedWindowOnlyConcernsThatDayAndThatStore(): void
+    {
+        $this->enable();
+        PlanningCheckForce::mark(3, '2026-10-25'); // un autre jour que demain
+        $early = new \DateTimeImmutable('2026-10-21 05:00:00', new \DateTimeZone('Asia/Tokyo'));
+
+        $this->assertNull($this->resolve($early));
+        $this->assertFalse(PlanningCheckForce::isForced(4, '2026-10-25'));
     }
 
     // ── Escalade ────────────────────────────────────────────────────────────────────────────────────────────────

@@ -6,6 +6,16 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-23
+
+### Added
+
+- **Revérifier le planning de demain** (carte « Planning de demain » de l'historique du magasin) : un bouton rouvre la vérification de demain, même déjà soumise ou validée, et **force l'ouverture de la fenêtre habituelle** — les shifts de demain, à vérifier de nouveau (oui / non, modifier / plus tard) — même hors fenêtre horaire ou un jour non ouvré. La soumettre recrée un rapport, que le valideur valide comme d'habitude ; le PDF part alors comme version mise à jour. Le mode forcé est propre à l'utilisateur et à sa session, et se lève à la soumission. `POST .../planning-check/recheck` (droit `planning_check.submit`), audit `planning_check.recheck_forced`.
+
+### Changed
+
+- Le bouton « Refaire le signalement » (`.../reopen`) est remplacé par « Revérifier le planning de demain », qui rouvre déjà la vérification et affiche la fenêtre. « Envoyer maintenant » reste en action secondaire pour les valideurs.
+
 ## [2.0.0] - 2026-10-23
 
 Première version stable de la ligne 2 : elle regroupe, à l'identique, tout ce qui a été publié en alpha et en bêta depuis la ligne 1 (voir les sections ci-dessous), sans changement fonctionnel propre à cette version.
