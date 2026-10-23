@@ -79,10 +79,29 @@ $_error = (string) ($_GET['error'] ?? '');
         <div class="card-header"><?= __('planning_check_setting_recipients') ?></div>
         <div class="card-body form-stack">
             <div class="form-group">
-                <textarea name="mail_recipients" rows="4" class="form-control" aria-label="<?= htmlspecialchars(__('planning_check_setting_recipients')) ?>"><?= htmlspecialchars(implode("
-", (array) $settings['mail_recipients'])) ?></textarea>
-                <p class="form-hint"><?= __('planning_check_setting_recipients_hint') ?></p>
+                <?= \kintai\Contract\View\Components\UserPicker::make('mail_recipient_ids', $candidates ?? [])
+                    ->selected((array) ($settings['mail_recipient_ids'] ?? []))
+                    ->hint(__('planning_check_setting_recipients_hint'))
+                    ->render() ?>
             </div>
+            <?php if (!empty($settings['mail_recipients'])): ?>
+                <div class="form-group">
+                    <fieldset class="user-picker">
+                        <legend class="user-picker__legend"><?= __('planning_check_setting_legacy_recipients') ?></legend>
+                        <p class="user-picker__hint"><?= __('planning_check_setting_legacy_recipients_hint') ?></p>
+                        <ul class="user-picker__list">
+                            <?php foreach ((array) $settings['mail_recipients'] as $_address): ?>
+                                <li class="user-picker__item">
+                                    <label class="user-picker__label">
+                                        <input type="checkbox" name="legacy_recipients[]" value="<?= htmlspecialchars((string) $_address, ENT_QUOTES) ?>" checked>
+                                        <span class="user-picker__name"><?= htmlspecialchars((string) $_address) ?></span>
+                                    </label>
+                                </li>
+                            <?php endforeach; ?>
+                        </ul>
+                    </fieldset>
+                </div>
+            <?php endif; ?>
             <div class="pc-switch-row">
                 <p class="pc-switch-row__title"><?= __('planning_check_setting_open_shifts') ?></p>
                 <label class="form-toggle">

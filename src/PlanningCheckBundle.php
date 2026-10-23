@@ -25,6 +25,7 @@ use kintai\Contract\Extension\PageOverlay;
 use kintai\Contract\Services\Mailer;
 use kintai\Contract\Services\NotificationService;
 use kintai\Contract\Services\TranslationService;
+use kintai\Contract\Services\UserSelection;
 use kintai\Contract\View\ViewRenderer;
 
 /**
@@ -81,6 +82,7 @@ final class PlanningCheckBundle extends Bundle
             $c->make(Mailer::class),
             $c->make(TranslationService::class),
             $c->make(PlanningPdfService::class),
+            $c->make(UserSelection::class),
         ));
         $container->singleton(PlanningCheckService::class, fn(Container $c) => new PlanningCheckService(
             $c->make(PlanningCheckRepositoryInterface::class),

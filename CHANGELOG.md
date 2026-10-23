@@ -6,6 +6,15 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-10-23
+
+### Changed
+
+- **Destinataires du PDF : on coche des employés du magasin** au lieu de saisir des adresses dans un champ texte. La liste vient du composant partagé du Core (`UserPicker`, contrat 1.29) ; on enregistre le compte de l'employé (`planning_check_settings.mail_recipient_ids`, migration `2026_10_24_000001`), donc un changement d'adresse est suivi et un compte désactivé ou retiré du magasin ne reçoit plus rien. 10 destinataires au plus, au moins un pour activer le contrôle.
+- **Un e-mail par personne**, avec le PDF joint : les destinataires ne voient plus les adresses des autres. L'historique des envois garde les adresses réellement utilisées.
+- Les adresses saisies auparavant (`mail_recipients`) restent utilisées et sont listées à part dans les réglages ; on peut les retirer mais plus en ajouter.
+- Le bundle exige le contrat `^1.29`.
+
 ## [2.1.0] - 2026-10-23
 
 ### Added
