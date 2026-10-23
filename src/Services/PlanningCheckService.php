@@ -180,7 +180,7 @@ final class PlanningCheckService
             return $this->fail('not_found', $check);
         }
         $settings = $this->repo->settings($check['store_id']);
-        if ($this->mail->recipients($settings) === []) {
+        if ($this->mail->recipients($settings, (int) $check['store_id']) === []) {
             return $this->fail('no_recipients', $check);
         }
 

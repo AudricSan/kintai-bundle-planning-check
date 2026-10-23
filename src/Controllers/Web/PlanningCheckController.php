@@ -21,6 +21,7 @@ use kintai\Contract\Http\Request;
 use kintai\Contract\Http\Response;
 use kintai\Contract\Services\AuditLogger;
 use kintai\Contract\Services\NotificationService;
+use kintai\Contract\Services\UserSelection;
 use kintai\Contract\View\ViewRenderer;
 
 /**
@@ -44,6 +45,7 @@ final class PlanningCheckController
         private readonly PermissionService $permissions,
         private readonly AuditLogger $auditLogger,
         private readonly NotificationService $notifications,
+        private readonly UserSelection $selection,
     ) {}
 
     // ── Accueil et historique ───────────────────────────────────────────────────────────────────────────────────
@@ -255,10 +257,11 @@ final class PlanningCheckController
         $store = $this->requireStore($request);
 
         return Response::html($this->view->render('planning-check::settings', [
-            'title'    => __('planning_check_settings_title'),
-            'store'    => $store,
-            'settings' => $this->repo->settings((int) $store['id']),
-            'errors'   => [],
+            'title'      => __('planning_check_settings_title'),
+            'store'      => $store,
+            'settings'   => $this->repo->settings((int) $store['id']),
+            'candidates' => $this->selection->candidates((int) $store['id']),
+            'errors'     => [],
         ], 'layout.app'));
     }
 
@@ -266,18 +269,24 @@ final class PlanningCheckController
     public function saveSettings(Request $request): Response
     {
         $store = $this->requireStore($request);
-        [$settings, $errors] = self::parseSettings($request->allPost());
+        $before = $this->repo->settings((int) $store['id']);
+        [$settings, $errors] = self::parseSettings($request->allPost(), $before);
+
+        // Chaque employé coché doit être un membre actif du magasin.
+        if ($this->selection->validate((int) $store['id'], $settings['mail_recipient_ids'])['error'] === 'unknown') {
+            $errors[] = 'planning_check_err_recipient_unknown';
+        }
 
         if ($errors !== []) {
             return Response::html($this->view->render('planning-check::settings', [
-                'title'    => __('planning_check_settings_title'),
-                'store'    => $store,
-                'settings' => $settings,
-                'errors'   => $errors,
+                'title'      => __('planning_check_settings_title'),
+                'store'      => $store,
+                'settings'   => $settings,
+                'candidates' => $this->selection->candidates((int) $store['id']),
+                'errors'     => $errors,
             ], 'layout.app'));
         }
 
-        $before = $this->repo->settings((int) $store['id']);
         $this->repo->saveSettings((int) $store['id'], $settings);
         $this->auditLogger->logUpdate($request, 'planning_check.settings_saved', 'planning_check_settings', (int) $store['id'], $before, $settings, ['store_id' => (int) $store['id']], (int) $store['id']);
 
@@ -308,12 +317,13 @@ final class PlanningCheckController
 
     /**
      * Réglages saisis → [réglages validés, erreurs (clés de traduction)]. Heures HH:MM avec début avant l'échéance, au moins un
-     * jour, destinataires valides (10 au plus, séparés par des retours à la ligne, virgules ou points-virgules).
+     * jour, destinataires (employés cochés et adresses d'avant la sélection restées cochées, 10 au plus en tout).
      *
      * @param array<string, mixed> $post
+     * @param array<string, mixed> $stored Réglages enregistrés (les adresses d'avant la sélection ne se retirent que de là)
      * @return array{0: array<string, mixed>, 1: list<string>}
      */
-    public static function parseSettings(array $post): array
+    public static function parseSettings(array $post, array $stored = []): array
     {
         $errors = [];
         $defaults = Repo::DEFAULT_SETTINGS;
@@ -336,22 +346,26 @@ final class PlanningCheckController
             $errors[] = 'planning_check_err_weekdays';
         }
 
-        $recipients = [];
-        foreach (preg_split('/[\s,;]+/', (string) ($post['mail_recipients'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $email) {
-            if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
-                $errors[] = 'planning_check_err_recipient_invalid';
-                continue;
+        // Employés cochés (comptes ; leur existence dans le magasin est vérifiée par saveSettings) et adresses saisies
+        // avant la sélection : on peut en retirer, plus en ajouter.
+        $ids = [];
+        foreach (is_array($post['mail_recipient_ids'] ?? null) ? $post['mail_recipient_ids'] : [] as $id) {
+            if ((int) $id > 0 && !in_array((int) $id, $ids, true)) {
+                $ids[] = (int) $id;
             }
-            $recipients[strtolower($email)] ??= $email;
         }
-        $recipients = array_values($recipients);
-        if (count($recipients) > 10) {
+        $keep = array_map(static fn($e): string => strtolower(trim((string) $e)), is_array($post['legacy_recipients'] ?? null) ? $post['legacy_recipients'] : []);
+        $legacy = array_values(array_filter(
+            array_map('strval', (array) ($stored['mail_recipients'] ?? [])),
+            static fn(string $e): bool => in_array(strtolower($e), $keep, true) && filter_var($e, FILTER_VALIDATE_EMAIL) !== false,
+        ));
+
+        if (count($ids) + count($legacy) > 10) {
             $errors[] = 'planning_check_err_recipients_max';
-            $recipients = array_slice($recipients, 0, 10);
         }
 
         $enabled = ($post['enabled'] ?? '') === '1';
-        if ($enabled && $recipients === []) {
+        if ($enabled && $ids === [] && $legacy === []) {
             $errors[] = 'planning_check_err_recipients_required';
         }
 
@@ -360,7 +374,8 @@ final class PlanningCheckController
             'deadline_time'       => $deadline ?? $defaults['deadline_time'],
             'window_start_time'   => $start ?? $defaults['window_start_time'],
             'weekdays'            => $weekdays !== [] ? $weekdays : $defaults['weekdays'],
-            'mail_recipients'     => $recipients,
+            'mail_recipient_ids'  => $ids,
+            'mail_recipients'     => $legacy,
             'include_open_shifts' => ($post['include_open_shifts'] ?? '') === '1',
         ], array_values(array_unique($errors))];
     }

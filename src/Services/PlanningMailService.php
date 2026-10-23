@@ -6,6 +6,7 @@ namespace kintai\Bundles\Installed\PlanningCheck\Services;
 
 use kintai\Contract\Services\Mailer;
 use kintai\Contract\Services\TranslationService;
+use kintai\Contract\Services\UserSelection;
 
 /**
  * Envoi du planning de demain au patron : e-mail court avec le PDF en pièce jointe, aux destinataires du magasin, dans la
@@ -17,20 +18,35 @@ final class PlanningMailService
         private readonly Mailer $mailer,
         private readonly TranslationService $translations,
         private readonly PlanningPdfService $pdf,
+        private readonly UserSelection $selection,
     ) {}
 
     /**
-     * Destinataires valides d'après les réglages du magasin.
+     * Adresses à qui envoyer, d'après les réglages du magasin : les employés choisis (relus maintenant, donc adresse à jour,
+     * comptes inactifs ou retirés du magasin écartés), puis les adresses saisies avant la sélection. Sans doublon.
      *
      * @param array<string, mixed> $settings
      * @return list<string>
      */
-    public function recipients(array $settings): array
+    public function recipients(array $settings, int $storeId = 0): array
     {
-        return array_values(array_unique(array_filter(
-            (array) ($settings['mail_recipients'] ?? []),
-            static fn($email): bool => is_string($email) && filter_var($email, FILTER_VALIDATE_EMAIL) !== false,
-        )));
+        $emails = [];
+        $add = static function (string $email) use (&$emails): void {
+            if (filter_var($email, FILTER_VALIDATE_EMAIL) !== false) {
+                $emails[strtolower($email)] ??= $email;
+            }
+        };
+
+        $ids = (array) ($settings['mail_recipient_ids'] ?? []);
+        if ($ids !== [] && $storeId > 0) {
+            foreach ($this->selection->resolve($storeId, $ids) as $user) {
+                $add($user['email']);
+            }
+        }
+        foreach ((array) ($settings['mail_recipients'] ?? []) as $email) {
+            $add((string) $email);
+        }
+        return array_values($emails);
     }
 
     /**
@@ -42,7 +58,7 @@ final class PlanningMailService
      */
     public function send(array $store, array $check, array $settings, ?string $pdfBytes, array $context = []): array
     {
-        $recipients = $this->recipients($settings);
+        $recipients = $this->recipients($settings, (int) ($store['id'] ?? 0));
         if ($recipients === []) {
             return ['ok' => false, 'error' => 'no_recipients', 'recipients' => []];
         }
@@ -65,7 +81,11 @@ final class PlanningMailService
         $tmp = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'kintai_pc_' . bin2hex(random_bytes(8)) . '.pdf';
         file_put_contents($tmp, $pdfBytes);
         try {
-            $sent = $this->mailer->send($recipients, $subject, $body, [$tmp]);
+            // Un e-mail par personne : les destinataires ne voient pas les adresses des autres.
+            $sent = false;
+            foreach ($recipients as $recipient) {
+                $sent = $this->mailer->send([$recipient], $subject, $body, [$tmp]) || $sent;
+            }
         } catch (\Throwable $e) {
             return ['ok' => false, 'error' => $e->getMessage(), 'recipients' => $recipients];
         } finally {
