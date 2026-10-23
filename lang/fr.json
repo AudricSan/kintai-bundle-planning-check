@@ -80,6 +80,8 @@
     "planning_check_reject_reason": "Motif du refus",
     "planning_check_rejected_notice": "Refusé, à corriger :",
     "planning_check_resend_updated": "Renvoyer une version mise à jour",
+    "planning_check_resend_new": "Générer un nouveau PDF et l'envoyer",
+    "planning_check_resend_new_confirm": "Générer un nouveau PDF à partir du planning actuel et l'envoyer aux destinataires ?",
     "planning_check_retry": "Réessayer",
     "planning_check_send_failed": "Envoi échoué",
     "planning_check_setting_deadline": "Heure limite",
