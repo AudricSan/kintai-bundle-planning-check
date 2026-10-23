@@ -284,17 +284,17 @@ final class PlanningCheckServiceTest extends TestCase
     public function testChosenEmployeesEachReceiveTheirOwnMailWithThePdf(): void
     {
         $check = $this->submitted();
-        $this->enable(['mail_recipient_ids' => [5, 7, 99], 'mail_recipients' => ['boss@EXAMPLE.com', 'U5@example.com']]);
+        $this->enable(['mail_recipient_ids' => [5, 7, 98, 99], 'mail_recipients' => ['boss@EXAMPLE.com', 'U5@example.com']]);
 
         $result = $this->service->approve($check['id'], 7, $this->now);
 
         $this->assertTrue($result['ok']);
-        // 99 n'est pas membre du magasin : écarté ; U5@example.com est déjà l'adresse de l'employé 5 : pas de doublon.
-        $this->assertSame([['u5@example.com'], ['u7@example.com'], ['boss@EXAMPLE.com']], array_column($this->mails, 'to'));
+        // 98 n'est pas membre du magasin : écarté ; 99 est l'Owner : proposable même hors magasin ; U5@example.com est déjà l'adresse de l'employé 5 : pas de doublon.
+        $this->assertSame([['u5@example.com'], ['u7@example.com'], ['u99@example.com'], ['boss@EXAMPLE.com']], array_column($this->mails, 'to'));
         foreach ($this->mails as $mail) {
             $this->assertTrue($mail['attached'], 'le PDF est joint à chaque message');
         }
-        $this->assertSame('["u5@example.com","u7@example.com","boss@EXAMPLE.com"]', $this->repo->sendsFor($check['id'])[0]['recipients'], 'l\'historique garde les adresses réellement utilisées');
+        $this->assertSame('["u5@example.com","u7@example.com","u99@example.com","boss@EXAMPLE.com"]', $this->repo->sendsFor($check['id'])[0]['recipients'], 'l\'historique garde les adresses réellement utilisées');
     }
 
     public function testAnEmployeeSelectionAloneIsEnoughToApprove(): void
