@@ -78,6 +78,8 @@ final class PlanningCheckController
         $storeId = (int) $store['id'];
 
         $checks = $this->repo->recentForStore($storeId, 40);
+        // Planning de demain (fuseau du magasin) : sa vérification, même hors fenêtre, pour l'envoyer ou la refaire à la main.
+        $tomorrow = PlanningCheckPolicy::targetDate((string) ($store['timezone'] ?? 'UTC'), new \DateTimeImmutable('now'));
         // Les notifications « à valider », « validé »… de ces validations sont lues à la visite de la page.
         if ($checks !== []) {
             $this->notifications->markReadFor((int) $user['id'], 'planning_check', array_column($checks, 'id'));
@@ -102,6 +104,11 @@ final class PlanningCheckController
             'checks'       => $checks,
             'names'        => $names,
             'highlight'    => (int) $request->query('highlight', 0),
+            'tomorrow'     => [
+                'date'  => $tomorrow,
+                'check' => $this->repo->findFor($storeId, $tomorrow),
+                'count' => count($this->rows->raw($storeId, $tomorrow)),
+            ],
             'can_approve'  => $this->permissions->can($user, 'planning_check.approve', $storeId),
             'can_submit'   => $this->permissions->can($user, 'planning_check.submit', $storeId),
             'can_settings' => $this->permissions->can($user, 'planning_check.settings', $storeId),
@@ -188,6 +195,35 @@ final class PlanningCheckController
             $this->auditLogger->log($request, 'planning_check.resent', 'planning_check', (int) $check['id'], ['store_id' => (int) $store['id'], 'date' => $check['target_date']], (int) $store['id']);
         }
         return $this->back($store, $result, 'resent');
+    }
+
+    /** POST /admin/stores/{id}/planning-check/send-now — le valideur envoie lui-même le planning de demain, à tout moment. */
+    public function sendNow(Request $request): Response
+    {
+        $store = $this->requireStore($request);
+        $date = $this->requireTargetDate($request, $store);
+        $user = $request->getAttribute('auth_user');
+
+        $result = $this->service->sendNow((int) $store['id'], $date, (int) $user['id'], $request->post('confirm_empty', '') === '1', new \DateTimeImmutable('now'));
+        if ($result['ok']) {
+            $this->auditLogger->log($request, 'planning_check.sent_now', 'planning_check', (int) ($result['check']['id'] ?? 0), [
+                'store_id' => (int) $store['id'], 'date' => $date, 'send_status' => $result['check']['send_status'] ?? '',
+            ], (int) $store['id']);
+        }
+        return $this->back($store, $result, 'sent_now');
+    }
+
+    /** POST /admin/stores/{id}/planning-check/reopen — « Refaire le signalement » : la vérification de demain repart de zéro. */
+    public function reopen(Request $request): Response
+    {
+        $store = $this->requireStore($request);
+        $date = $this->requireTargetDate($request, $store);
+
+        $result = $this->service->reopen((int) $store['id'], $date);
+        if ($result['ok']) {
+            $this->auditLogger->log($request, 'planning_check.reopened', 'planning_check', (int) $result['check']['id'], ['store_id' => (int) $store['id'], 'date' => $date], (int) $store['id']);
+        }
+        return $this->back($store, $result, 'reopened');
     }
 
     /** GET /admin/stores/{id}/planning-check/{cid}/pdf — PDF du planning tel qu'il est maintenant. */

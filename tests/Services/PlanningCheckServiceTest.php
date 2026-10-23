@@ -361,6 +361,110 @@ final class PlanningCheckServiceTest extends TestCase
         $this->assertSame('bad_status', $this->service->resend($check['id'], 7, $this->now)['error']);
     }
 
+    // ── Envoyer maintenant / refaire le signalement ─────────────────────────────────────────────────────────────
+
+    public function testSendNowSubmitsValidatesAndSendsEvenOutsideTheWindow(): void
+    {
+        $this->enable();
+        $early = new \DateTimeImmutable('2026-10-21 05:00:00', new \DateTimeZone('Asia/Tokyo')); // fenêtre pas encore ouverte
+
+        $result = $this->service->sendNow(3, '2026-10-22', 7, false, $early);
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame('validated', $result['check']['status']);
+        $this->assertSame('sent', $result['check']['send_status']);
+        $this->assertSame(7, $result['check']['submitted_by']);
+        $this->assertSame(7, $result['check']['validated_by']);
+        $this->assertCount(1, $this->mails);
+        $this->assertSame(['boss@example.com'], $this->mails[0]['to']);
+        $this->assertSame(1, $this->mails[0]['attachments']);
+    }
+
+    public function testSendNowValidatesWhatWasAlreadySubmitted(): void
+    {
+        $check = $this->submitted();
+
+        $result = $this->service->sendNow(3, '2026-10-22', 7, false, $this->now);
+
+        $this->assertTrue($result['ok']);
+        $this->assertSame($check['id'], $result['check']['id']);
+        $this->assertSame('validated', $result['check']['status']);
+        $this->assertSame(5, $result['check']['submitted_by'], 'le soumetteur d\'origine est conservé');
+        $this->assertCount(1, $this->mails);
+    }
+
+    public function testSendNowRegeneratesAndResendsAnAlreadyValidatedCheckAsAnUpdate(): void
+    {
+        $this->enable();
+        $this->service->sendNow(3, '2026-10-22', 7, false, $this->now);
+        $this->shifts[] = ['id' => 3, 'user_id' => 8, 'shift_type_id' => 1, 'start_time' => '12:00:00', 'end_time' => '20:00:00', 'duration_minutes' => 480, 'pause_minutes' => 60];
+
+        $result = $this->service->sendNow(3, '2026-10-22', 7, false, $this->now);
+
+        $this->assertTrue($result['ok']);
+        $this->assertCount(2, $this->mails);
+        $this->assertStringContainsString('planning_check_updated_label', $this->mails[1]['subject']);
+        $this->assertFalse($this->service->needsResend($this->repo->find($result['check']['id'])), 'la nouvelle version reflète les shifts actuels');
+    }
+
+    public function testSendNowWithoutShiftNeedsTheExplicitConfirmation(): void
+    {
+        $this->enable();
+        $this->shifts = [];
+
+        $refused = $this->service->sendNow(3, '2026-10-22', 7, false, $this->now);
+        $this->assertFalse($refused['ok']);
+        $this->assertSame('no_shifts', $refused['error']);
+        $this->assertSame([], $this->mails);
+
+        $this->assertTrue($this->service->sendNow(3, '2026-10-22', 7, true, $this->now)['ok']);
+        $this->assertCount(1, $this->mails);
+    }
+
+    public function testSendNowNeedsAnEnabledStoreAndARecipient(): void
+    {
+        $this->assertSame('not_enabled', $this->service->sendNow(3, '2026-10-22', 7, false, $this->now)['error']);
+
+        $this->enable(['mail_recipients' => []]);
+        $result = $this->service->sendNow(3, '2026-10-22', 7, false, $this->now);
+        $this->assertSame('no_recipients', $result['error']);
+        $this->assertSame([], $this->mails);
+    }
+
+    public function testReopeningAValidatedCheckSendsTheNextValidationAsAnUpdate(): void
+    {
+        $this->enable();
+        $sent = $this->service->sendNow(3, '2026-10-22', 7, false, $this->now)['check'];
+
+        $reopened = $this->service->reopen(3, '2026-10-22');
+
+        $this->assertTrue($reopened['ok']);
+        $this->assertSame('pending', $reopened['check']['status']);
+        $this->assertNull($reopened['check']['submitted_by']);
+        $this->assertNull($reopened['check']['validated_by']);
+        $this->assertCount(1, $this->repo->sendsFor($sent['id']), 'l\'historique des envois est conservé');
+
+        $this->assertTrue($this->service->sendNow(3, '2026-10-22', 7, false, $this->now)['ok']);
+        $this->assertCount(2, $this->mails);
+        $this->assertStringContainsString('planning_check_updated_label', $this->mails[1]['subject']);
+    }
+
+    public function testReopeningAlsoWorksOnASubmittedCheck(): void
+    {
+        $this->submitted();
+
+        $this->assertSame('pending', $this->service->reopen(3, '2026-10-22')['check']['status']);
+    }
+
+    public function testReopeningNeedsASubmittedOrValidatedCheck(): void
+    {
+        $this->enable();
+        $this->assertSame('not_found', $this->service->reopen(3, '2026-10-22')['error'], 'rien à rouvrir');
+
+        $this->service->state(['id' => 3, 'timezone' => 'Asia/Tokyo'], $this->now); // crée la vérification en attente
+        $this->assertSame('bad_status', $this->service->reopen(3, '2026-10-22')['error']);
+    }
+
     // ── Escalade ────────────────────────────────────────────────────────────────────────────────────────────────
 
     public function testNothingIsEscalatedBeforeTheDeadlineOrOutsideTheWindow(): void
