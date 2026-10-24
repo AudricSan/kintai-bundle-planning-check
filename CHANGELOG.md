@@ -6,6 +6,10 @@ Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.0.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fuseau horaire : celui de l'application, plus celui du magasin.** Le jour visé (« demain »), l'ouverture de la fenêtre et l'heure limite étaient évalués dans le fuseau du magasin, qui vaut « UTC » par défaut : le contrôle s'ouvrait et passait « en retard » avec plusieurs heures de décalage, et pouvait viser le mauvais jour. Ils suivent désormais le fuseau de l'instance (`APP_TIMEZONE`), comme la synchronisation de calendrier du Core.
+
 ## [2.2.0] - 2026-10-23
 
 ### Changed
