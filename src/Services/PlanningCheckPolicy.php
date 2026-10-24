@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace kintai\Bundles\Installed\PlanningCheck\Services;
 
 /**
- * Règles de temps de la validation du planning, toutes évaluées dans le fuseau du magasin : quel jour est visé (le
+ * Règles de temps de la validation du planning, toutes évaluées dans le fuseau reçu (celui de l'application) : quel jour est visé (le
  * lendemain), à partir de quand la fenêtre s'ouvre, quand elle est en retard, et si ce jour fait partie des jours
  * concernés. Fonctions pures, sans accès aux données.
  */
