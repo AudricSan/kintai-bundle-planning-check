@@ -50,6 +50,7 @@ final class PlanningCheckServiceTest extends TestCase
     public ?string $pdfBytes = '%PDF-fake';
     public bool $mailOk = true;
     private \DateTimeImmutable $now;
+    private string $previousTimezone = 'UTC';
     /** @var array{0: StoreRepositoryInterface, 1: PlanningShiftRows} */
     private array $resolverDeps;
 
@@ -70,8 +71,12 @@ final class PlanningCheckServiceTest extends TestCase
         $loader->load(dirname(__DIR__, 2) . '/database/migrations/2026_10_23_000001_create_planning_check_tables.php')->up();
         $loader->load(dirname(__DIR__, 2) . '/database/migrations/2026_10_24_000001_add_mail_recipient_ids_to_planning_check_settings.php')->up();
 
+        // Les règles de temps suivent le fuseau de l'application, pas celui du magasin.
+        $this->previousTimezone = date_default_timezone_get();
+        date_default_timezone_set('Asia/Tokyo');
+
         $this->repo = new DatabasePlanningCheckRepository();
-        $this->now = new \DateTimeImmutable('2026-10-21 08:00:00', new \DateTimeZone('Asia/Tokyo')); // 08:00 à Tokyo
+        $this->now =new \DateTimeImmutable('2026-10-21 08:00:00', new \DateTimeZone('Asia/Tokyo')); // 08:00 à Tokyo
         $this->mails = $this->notifications = [];
         $this->pdfBytes = '%PDF-fake';
         $this->mailOk = true;
@@ -150,6 +155,7 @@ final class PlanningCheckServiceTest extends TestCase
 
     protected function tearDown(): void
     {
+        date_default_timezone_set($this->previousTimezone);
         $_SESSION = [];
     }
 
@@ -194,6 +200,17 @@ final class PlanningCheckServiceTest extends TestCase
         $this->assertFalse($this->service->state($store, $early)['due'], 'fenêtre pas encore ouverte');
         $late = new \DateTimeImmutable('2026-10-21 12:30:00', new \DateTimeZone('Asia/Tokyo'));
         $this->assertTrue($this->service->state($store, $late)['late']);
+    }
+
+    public function testTheStoreTimezoneIsIgnoredInFavourOfTheApplicationOne(): void
+    {
+        $this->enable();
+        // Magasin resté sur le « UTC » par défaut : 08:00 à Tokyo (fuseau de l'application) reste 08:00, pas 23:00 la veille.
+        $state = $this->service->state(['id' => 3, 'timezone' => 'UTC'], $this->now);
+
+        $this->assertTrue($state['due']);
+        $this->assertSame('2026-10-22', $state['date']);
+        $this->assertFalse($state['late']);
     }
 
     public function testAClosedDayIsNeverDue(): void
