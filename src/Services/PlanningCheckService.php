@@ -48,7 +48,8 @@ final class PlanningCheckService
     {
         $storeId = (int) $store['id'];
         $settings = $this->repo->settings($storeId);
-        $timezone = (string) ($store['timezone'] ?? 'UTC');
+        // Fuseau de l'application (APP_TIMEZONE), pas celui du magasin qui vaut « UTC » par défaut.
+        $timezone = date_default_timezone_get();
         $date = PlanningCheckPolicy::targetDate($timezone, $now);
 
         $due = !empty($settings['enabled'])

@@ -81,8 +81,8 @@ final class PlanningCheckController
         $storeId = (int) $store['id'];
 
         $checks = $this->repo->recentForStore($storeId, 40);
-        // Planning de demain (fuseau du magasin) : sa vérification, même hors fenêtre, pour l'envoyer ou la refaire à la main.
-        $tomorrow = PlanningCheckPolicy::targetDate((string) ($store['timezone'] ?? 'UTC'), new \DateTimeImmutable('now'));
+        // Planning de demain (fuseau de l'application) : sa vérification, même hors fenêtre, pour l'envoyer ou la refaire à la main.
+        $tomorrow = PlanningCheckPolicy::targetDate(date_default_timezone_get(), new \DateTimeImmutable('now'));
         // Les notifications « à valider », « validé »… de ces validations sont lues à la visite de la page.
         if ($checks !== []) {
             $this->notifications->markReadFor((int) $user['id'], 'planning_check', array_column($checks, 'id'));
@@ -305,7 +305,7 @@ final class PlanningCheckController
         }
 
         $now = new \DateTimeImmutable('now');
-        $date = PlanningCheckPolicy::targetDate((string) ($store['timezone'] ?? 'UTC'), $now);
+        $date = PlanningCheckPolicy::targetDate(date_default_timezone_get(), $now);
         $settings = $this->repo->settings((int) $store['id']);
         $check = ['target_date' => $date, 'status' => 'test'];
         $day = $this->rows->forDay((int) $store['id'], $date, $settings);
@@ -411,7 +411,7 @@ final class PlanningCheckController
     /** Le jour soumis doit être le lendemain du magasin : on ne valide pas une date arbitraire envoyée par le formulaire. */
     private function requireTargetDate(Request $request, array $store): string
     {
-        $expected = PlanningCheckPolicy::targetDate((string) ($store['timezone'] ?? 'UTC'), new \DateTimeImmutable('now'));
+        $expected = PlanningCheckPolicy::targetDate(date_default_timezone_get(), new \DateTimeImmutable('now'));
         if ((string) $request->post('date', '') !== $expected) {
             throw new NotFoundException(__('planning_check_err_not_found'));
         }
